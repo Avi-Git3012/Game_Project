@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pong</title>
+<style>
+  body {
+    margin: 0;
+    height: 100vh;
+    background: #0b0b10;
+    color: white;
+    font-family: Arial, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+  canvas {
+    background: #111;
+    border: 2px solid #333;
+    max-width: 96vw;
+  }
+  p {
+    color: #888;
+    font-size: 14px;
+    margin-top: 10px;
+  }
+</style>
+</head>
+<body>
+<canvas id="game" width="800" height="500"></canvas>
+<p>W / S or Up / Down to move. Space to start or pause.</p>
+<script>
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const width = canvas.width;
+const height = canvas.height;
+
+const paddleWidth = 12;
+const paddleHeight = 90;
+const paddleSpeed = 6;
+const ballRadius = 8;
+const startSpeed = 6;
+const maxSpeed = 13;
+const aiSpeed = 4.2;
+const aiDelay = 12;
+
+let playerY = height / 2 - paddleHeight / 2;
+let aiY = height / 2 - paddleHeight / 2;
+const playerX = 20;
+const aiX = width - 20 - paddleWidth;
+let playerScore = 0;
+let aiScore = 0;
+
+let ballX = width / 2;
+let ballY = height / 2;
+let dx = 0;
+let dy = 0;
+let speed = startSpeed;
+
+let running = false;
+const keys = {};
+
+document.addEventListener('keydown', function (e) {
+  if (e.key === ' ' || e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+    e.preventDefault();
+  }
+  if (e.key === ' ' && !e.repeat) {
+    running = !running;
+  }
+  keys[e.key.toLowerCase()] = true;
+});
+
+document.addEventListener('keyup', function (e) {
+  keys[e.key.toLowerCase()] = false;
+});
+
+function clamp(value, min, max) {
+  if (value < min) return min;
+  if (value > max) return max;
+  return value;
+}
+
+function resetBall(direction) {
+  ballX = width / 2;
+  ballY = height / 2;
+  speed = startSpeed;
+  const angle = (Math.random() - 0.5) * (Math.PI / 3);
+  dx = Math.cos(angle) * speed * direction;
+  dy = Math.sin(angle) * speed;
+}
+
+function ballHitsPaddle(paddleX, paddleY) {
+  const closestX = clamp(ballX, paddleX, paddleX + paddleWidth);
+  const closestY = clamp(ballY, paddleY, paddleY + paddleHeight);
+  const distX = ballX - closestX;
+  const distY = ballY - closestY;
+  return distX * distX + distY * distY <= ballRadius * ballRadius;
+}
+
+function bounceOff(paddleY, direction) {
+  let hit = (ballY - (paddleY + paddleHeight / 2)) / (paddleHeight / 2);
+  hit = clamp(hit, -1, 1);
+  const angle = hit * (Math.PI / 3);
+  speed = Math.min(speed * 1.05, maxSpeed);
+  dx = Math.cos(angle) * speed * direction;
+  dy = Math.sin(angle) * speed;
+}
+
+function update() {
+  if (keys['w'] || keys['arrowup']) {
+    playerY -= paddleSpeed;
+  }
+  if (keys['s'] || keys['arrowdown']) {
+    playerY += paddleSpeed;
+  }
+  playerY = clamp(playerY, 0, height - paddleHeight);
+
+  if (!running) return;
+
+  const aiCenter = aiY + paddleHeight / 2;
+  const difference = ballY - aiCenter;
+  if (Math.abs(difference) > aiDelay) {
+    aiY += clamp(difference, -aiSpeed, aiSpeed);
+  }
+  aiY = clamp(aiY, 0, height - paddleHeight);
+
+  ballX += dx;
+  ballY += dy;
+
+  if (ballY - ballRadius < 0) {
+    ballY = ballRadius;
+    dy = -dy;
+  }
+  if (ballY + ballRadius > height) {
+    ballY = height - ballRadius;
+    dy = -dy;
+  }
+
+  if (dx < 0 && ballHitsPaddle(playerX, playerY)) {
+    ballX = playerX + paddleWidth + ballRadius;
+    bounceOff(playerY, 1);
+  } else if (dx > 0 && ballHitsPaddle(aiX, aiY)) {
+    ballX = aiX - ballRadius;
+    bounceOff(aiY, -1);
+  }
+
+  if (ballX + ballRadius < 0) {
+    aiScore++;
+    resetBall(1);
+  } else if (ballX - ballRadius > width) {
+    playerScore++;
+    resetBall(-1);
+  }
+}
+
+function draw() {
+  ctx.fillStyle = '#111';
+  ctx.fillRect(0, 0, width, height);
+
+  ctx.fillStyle = '#444';
+  for (let y = 10; y < height; y += 30) {
+    ctx.fillRect(width / 2 - 2, y, 4, 16);
+  }
+
+  ctx.fillStyle = 'white';
+  ctx.fillRect(playerX, playerY, paddleWidth, paddleHeight);
+  ctx.fillRect(aiX, aiY, paddleWidth, paddleHeight);
+  ctx.beginPath();
+  ctx.arc(ballX, ballY, ballRadius, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.textAlign = 'center';
+  ctx.font = 'bold 44px monospace';
+  ctx.fillText(playerScore, width / 2 - 80, 56);
+  ctx.fillText(aiScore, width / 2 + 80, 56);
+
+  ctx.font = '14px monospace';
+  ctx.fillStyle = '#888';
+  ctx.fillText('PLAYER', width / 2 - 80, 78);
+  ctx.fillText('AI', width / 2 + 80, 78);
+
+  if (!running) {
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+    ctx.fillRect(0, 0, width, height);
+    ctx.fillStyle = 'white';
+    ctx.font = 'bold 28px monospace';
+    ctx.fillText('Press SPACE to play', width / 2, height / 2 + 100);
+  }
+}
+
+function gameLoop() {
+  update();
+  draw();
+  requestAnimationFrame(gameLoop);
+}
+
+resetBall(Math.random() < 0.5 ? -1 : 1);
+gameLoop();
+</script>
+</body>
+</html>
